@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Monitor Dashboard</title>
+    <meta http-equiv="refresh" content="60">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        .dashboard { --max-cols: {{ settings.maxColumns }}; }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="page-header">
+        <h1>System Dashboard</h1>
+        <a class="link" href="{{ url_for('logout_page') }}">Logout</a>
+    </div>
+    <div class="dashboard">
+        {% for hostname, data in inventory.items() %}
+        <div class="host-card {{ 'stale' if data.isStale else '' }}">
+            {% if settings.showName %}
+            <div class="hostname">{{ hostname }}</div>
+            {% endif %}
+            {% if settings.showDescription %}
+            <div class="description">Description: {{ data.description }}</div>
+            {% endif %}
+            {% if settings.showLastSeen %}
+            <div class="timestamp">Last seen: {{ data.timeStamp }}</div>
+            {% endif %}
+            {% if data.isStale %}
+            <div class="stale-warning">HOST OFFLINE (Exceeded {{ data.timeoutError }} s)</div>
+            {% endif %}
+            {% if data.metrics and data.metrics is mapping %}
+            {% for group_name, group_content in data.metrics.items() %}
+            <div class="metric-section">
+                <span class="metric-title">{{ group_name }}</span>
+                {% if group_content is mapping %}
+                {% set first_val = group_content.values() | first | default(none) %}
+                {% if first_val is mapping %}
+                {% for item_name, item_details in group_content.items() %}
+                {% if item_details is mapping %}
+                <span class="status-badge {{ item_details.status | default('WHITE') }}">
+                    {{ item_name }}:
+                    {% for k, v in item_details.items() %}
+                    {% if k != 'status' %}
+                    {{ v }}
+                    {% endif %}
+                    {% endfor %}
+                </span>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <span class="status-badge {{ group_content.status | default('WHITE') }}">
+                    {% for k, v in group_content.items() %}
+                    {% if k != 'status' %}
+                    {{ k }}: {{ v }}
+                    {% endif %}
+                    {% endfor %}
+                </span>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</body>
+
+</html>

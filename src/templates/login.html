@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+</head>
+
+<body>
+    <h1>System Login</h1>
+    <div class="card">
+        <form method="post">
+            <input type="password" name="password" placeholder="Enter Password" autofocus required>
+            <input type="submit" value="Unlock Dashboard">
+        </form>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </div>
+</body>
+
+</html>

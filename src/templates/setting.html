@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor Settings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+</head>
+
+<body>
+    <h1>System Settings</h1>
+    <div class="card">
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST" action="{{ url_for('settings_page') }}">
+            <div class="field">
+                <label for="maxColumns">Max columns</label>
+                <input type="number" id="maxColumns" name="maxColumns" min="1" value="{{ settings.maxColumns }}">
+                <div class="help">Number of columns shown on the dashboard grid.</div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showName" name="showName" {% if settings.showName %}checked{% endif %}>
+                    <label for="showName">Show name</label>
+                </div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showDescription" name="showDescription" {% if settings.showDescription
+                        %}checked{% endif %}>
+                    <label for="showDescription">Show description</label>
+                </div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="showLastSeen" name="showLastSeen" {% if settings.showLastSeen %}checked{%
+                        endif %}>
+                    <label for="showLastSeen">Show last seen date</label>
+                </div>
+            </div>
+            <div class="field">
+                <div class="checkbox-row">
+                    <input type="checkbox" id="demandKey" name="demandKey" {% if settings.demandKey %}checked{% endif
+                        %}>
+                    <label for="demandKey">Require key on incoming reports</label>
+                </div>
+            </div>
+            <div class="field">
+                <label for="keys">Accepted keys</label>
+                <textarea id="keys" name="keys"
+                    placeholder="one key per line">{{ settings['keys'] | join('\n') }}</textarea>
+                <div class="help">One key per line. Used when "Require key" is enabled above.</div>
+            </div>
+            <div class="field">
+                <label for="validTimeout">Time to stale</label>
+                <input type="number" id="validTimeout" name="validTimeout" min="1" value="{{ settings.validTimeout }}">
+                <div class="help">Time from last report until an entry is marked stale (seconds).</div>
+            </div>
+            <div class="field">
+                <label for="removeTimeout">Time to remove</label>
+                <input type="number" id="removeTimeout" name="removeTimeout" min="1" value="{{ settings.removeTimeout }}">
+                <div class="help">Time from last report until an entry is removed (secons).</div>
+            </div>
+            <hr>
+            <div class="field">
+                <label for="userpassword">User password</label>
+                <input type="text" id="userpassword" name="userpassword"
+                    placeholder="leave blank to keep unchanged" autocomplete="off">
+                <div class="help">Grants access to the dashboard only.</div>
+            </div>
+            <div class="field">
+                <label for="adminpassword">Admin password</label>
+                <input type="text" id="adminpassword" name="adminpassword"
+                    placeholder="leave blank to keep unchanged" autocomplete="off">
+                <div class="help">Grants access to the dashboard, settings, and cleanup.</div>
+            </div>
+            <input type="submit" value="Save settings">
+        </form>
+        <hr>
+        <a class="link" href="{{ url_for('dashboard_page') }}">&larr; Back to dashboard</a>
+        <hr>
+        <a class="link" href="{{ url_for('cleanup_stale_page') }}">&larr; Clear all stale entries</a>
+        <hr>
+        <a class="link" href="{{ url_for('logout_page') }}">&larr; Logout</a>
+    </div>
+</body>
+
+</html>
