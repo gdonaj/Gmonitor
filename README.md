@@ -193,3 +193,7 @@ sudo rm -rf /srv/Gmonitor   # or your chosen install path
 ```
 
 Remember to also close the firewall port you opened during installation, if it's no longer needed.
+
+## TODO
+
+Use an actual database.
