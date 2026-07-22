@@ -56,7 +56,7 @@
                 <span class="status-badge {{ group_content.status | default('WHITE') }}">
                     {% for k, v in group_content.items() %}
                     {% if k != 'status' %}
-                    {{ k }}: {{ v }}
+                    {{ k }}={{ v }};&#32;
                     {% endif %}
                     {% endfor %}
                 </span>
