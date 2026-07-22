@@ -29,7 +29,7 @@ gDefaultSettings = {
 
 def load_settings():
     if not os.path.exists(gSettingsFile):
-        save_settings(gDefaultSettings)
+        save_settings(dict(gDefaultSettings))
         return dict(gDefaultSettings)
     try:
         with open(gSettingsFile, 'r') as f:
@@ -56,25 +56,25 @@ def load_inventory():
         return {}
     try:
         with open(gInventoryFile, 'r') as f:
-            raw = json.load(f) 
+            raw = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return {}
     for hostname, data in raw.items():
         timeStamp = data.get('timeStamp')
         if timeStamp:
             try:
-                # data['timeStamp'] = datetime.fromisoformat(timeStamp)
+                # data['timeStamp'] = datetime.fromisoformat(timeStamp) # for newer versions
                 clean_str = str(timeStamp).replace('T', ' ').replace('Z', '')[:19]
                 data['timeStamp'] = datetime.strptime(clean_str, "%Y-%m-%d %H:%M:%S")
             except (ValueError, TypeError, AttributeError):
                 data['timeStamp'] = None
-    
+
     return raw
 
-def save_inventory():
+def save_inventory(inventory):
     with _inventory_lock:
         entireColletion = {}
-        for hostname, data in gINVENTORY.items():
+        for hostname, data in inventory.items():
             thisEntry = dict(data)
             timeStamp = thisEntry.get('timeStamp')
             if isinstance(timeStamp, datetime):
@@ -103,8 +103,9 @@ gConfig.read('Gmonitor.ini')
 gPort          = gConfig.getint('Server', 'port', fallback=8080)
 gSettingsFile  = gConfig.get('Files', 'settings',  fallback='settings.json')
 gInventoryFile = gConfig.get('Files', 'inventory', fallback='inventory.json')
-gSETTINGS      = load_settings()
-gINVENTORY     = load_inventory()
+
+if not os.path.exists(gSettingsFile):
+    save_settings(dict(gDefaultSettings))
 
 ################################################################################################
 # ROUTES
@@ -126,7 +127,7 @@ def favicon_page():
 
 ################################################################################################
 
-def set_bounds(value,min,max):
+def set_bounds(value, min, max):
     if value < min:
         value = min
     if value > max:
@@ -138,58 +139,61 @@ def set_bounds(value,min,max):
 def settings_page():
 
     error = None
-    
-    if request.method == 'POST':
-        
-        try:
-            new_max = int(request.form.get('maxColumns', gSETTINGS['maxColumns']))
-            new_valid = int(request.form.get('validTimeout', gSETTINGS['validTimeout']))
-            new_remove = int(request.form.get('removeTimeout', gSETTINGS['removeTimeout']))
-        except ValueError:
-            error = "Timeout and column values must be numbers."
 
-        if error is None:
-            with _inventory_lock:
-                gSETTINGS['maxColumns'] = set_bounds(new_max,2,10)
-                gSETTINGS['validTimeout'] = set_bounds(new_valid,60,90000)
-                gSETTINGS['removeTimeout'] = set_bounds(new_remove,60,31622400)
-                gSETTINGS['showName'] = 'showName' in request.form
-                gSETTINGS['showDescription'] = 'showDescription' in request.form
-                gSETTINGS['showLastSeen'] = 'showLastSeen' in request.form
-                gSETTINGS['demandKey'] = 'demandKey' in request.form
+    with _inventory_lock:
+        settings = load_settings()
+
+        if request.method == 'POST':
+
+            try:
+                new_max = int(request.form.get('maxColumns', settings['maxColumns']))
+                new_valid = int(request.form.get('validTimeout', settings['validTimeout']))
+                new_remove = int(request.form.get('removeTimeout', settings['removeTimeout']))
+            except ValueError:
+                error = "Timeout and column values must be numbers."
+
+            if error is None:
+                settings['maxColumns'] = set_bounds(new_max, 2, 10)
+                settings['validTimeout'] = set_bounds(new_valid, 60, 90000)
+                settings['removeTimeout'] = set_bounds(new_remove, 60, 31622400)
+                settings['showName'] = 'showName' in request.form
+                settings['showDescription'] = 'showDescription' in request.form
+                settings['showLastSeen'] = 'showLastSeen' in request.form
+                settings['demandKey'] = 'demandKey' in request.form
                 keys_raw = request.form.get('keys', '')
-                gSETTINGS['keys'] = [k.strip() for k in keys_raw.splitlines() if k.strip()]
+                settings['keys'] = [k.strip() for k in keys_raw.splitlines() if k.strip()]
                 new_user_pw = request.form.get('userpassword', '').strip()
                 new_admin_pw = request.form.get('adminpassword', '').strip()
                 if new_user_pw:
-                    gSETTINGS['userpassword'] = new_user_pw
+                    settings['userpassword'] = new_user_pw
                 if new_admin_pw:
-                    gSETTINGS['adminpassword'] = new_admin_pw
-            save_settings(gSETTINGS)
+                    settings['adminpassword'] = new_admin_pw
+                save_settings(settings)
 
-    return render_template('setting.html', settings=gSETTINGS, error=error)
+    return render_template('setting.html', settings=settings, error=error)
 
 ################################################################################################
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    
+
     error = None
-    
+
     if request.method == 'POST':
+        settings = load_settings()
         entered = request.form.get('password')
-        if entered == gSETTINGS['adminpassword']:
+        if entered == settings['adminpassword']:
             session.permanent = True
             session['authenticated'] = True
             session['is_admin'] = True
             return redirect(url_for('dashboard_page'))
-        elif entered == gSETTINGS['userpassword']:
+        elif entered == settings['userpassword']:
             session.permanent = True
             session['authenticated'] = True
             session['is_admin'] = False
             return redirect(url_for('dashboard_page'))
         error = "Invalid password."
-        
+
     return render_template('login.html', error=error)
 
 ################################################################################################
@@ -206,14 +210,15 @@ def logout_page():
 def cleanup_stale_page():
 
     with _inventory_lock:
+        inventory = load_inventory()
         staleEntries = [
-            entryName for entryName, entryData in gINVENTORY.items()
+            entryName for entryName, entryData in inventory.items()
             if entryData.get('isStale', False)
         ]
         for entryName in staleEntries:
-            del gINVENTORY[entryName]
-    save_inventory()
-    
+            del inventory[entryName]
+        save_inventory(inventory)
+
     return redirect(url_for('dashboard_page'))
 
 ################################################################################################
@@ -225,45 +230,49 @@ def dashboard_page():
         return redirect(url_for('login_page'))
 
     timeNow = datetime.now()
-    
+    settings = load_settings()
+
     with _inventory_lock:
+        inventory = load_inventory()
         changed = False
-        for hostname, data in list(gINVENTORY.items()):
+        for hostname, data in list(inventory.items()):
             timeStamp = data.get('timeStamp')
             if isinstance(timeStamp, datetime):
                 timeElapsed = (timeNow - timeStamp).total_seconds()
-                validLimit = data.setdefault('timeoutError', gSETTINGS['validTimeout'])
-                data['isStale'] = timeElapsed > validLimit        
-                removeLimit = data.get('timeoutDelete', gSETTINGS['removeTimeout'])
+                validLimit = data.setdefault('timeoutError', settings['validTimeout'])
+                data['isStale'] = timeElapsed > validLimit
+                removeLimit = data.get('timeoutDelete', settings['removeTimeout'])
                 if timeElapsed > removeLimit:
-                    del gINVENTORY[hostname]
+                    del inventory[hostname]
                     changed = True
             else:
                 data['isStale'] = True
 
-        INVENTORYsort = OrderedDict(sorted(gINVENTORY.items()))
+        INVENTORYsort = OrderedDict(sorted(inventory.items()))
 
-    if changed:
-        save_inventory()
+        if changed:
+            save_inventory(inventory)
 
-    return render_template('dashboard.html', inventory=INVENTORYsort, settings=gSETTINGS, now=timeNow)
+    return render_template('dashboard.html', inventory=INVENTORYsort, settings=settings, now=timeNow)
 
 ################################################################################################
 
 @app.route('/report', methods=['POST'])
 def receive_report_page():
-    
+
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"status": "error", "message": "Invalid payload"}), 400
 
-    if gSETTINGS.get('demandKey', False):
+    settings = load_settings()
+
+    if settings.get('demandKey', False):
         provided_key = data.get('key')
-        if not provided_key or provided_key not in gSETTINGS.get('keys', []):
+        if not provided_key or provided_key not in settings.get('keys', []):
             return jsonify({"status": "error", "message": "Invalid or missing key"}), 401
 
     hostname = data.get("name", "Unknown")
-    
+
     raw_time = data.get('timeStamp')
     if isinstance(raw_time, str):
         try:
@@ -278,9 +287,10 @@ def receive_report_page():
     data['timeStamp'] = timeStamp
 
     with _inventory_lock:
-        gINVENTORY[hostname] = data
-    save_inventory()
-    
+        inventory = load_inventory()
+        inventory[hostname] = data
+        save_inventory(inventory)
+
     return jsonify({"status": "success"}), 200
 
 ################################################################################################
